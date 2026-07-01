@@ -44,6 +44,16 @@ class AssetRepository:
     def count(self) -> int:
         return int(self.conn.execute("select count(*) from assets").fetchone()[0])
 
+    def delete_non_real_assets(self) -> int:
+        deleted = 0
+        for asset in self.list_assets():
+            if "real_data" in asset.tags or any("clinicaltrials.gov/study/NCT" in evidence.url for evidence in asset.evidence):
+                continue
+            self.conn.execute("delete from assets where id = ?", (asset.id,))
+            deleted += 1
+        self.conn.commit()
+        return deleted
+
     def upsert_many(self, assets: Iterable[Asset]) -> None:
         for asset in assets:
             self.upsert(asset)

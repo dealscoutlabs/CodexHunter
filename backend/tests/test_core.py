@@ -46,6 +46,15 @@ class DealScoutCoreTests(unittest.TestCase):
             self.assertEqual(imported, 1)
             self.assertIsNotNone(repo.get("manual-1"))
 
+    def test_repository_can_delete_non_real_assets(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = AssetRepository(Path(td) / "test.sqlite3")
+            repo.seed()
+            self.assertGreaterEqual(repo.count(), 10)
+            deleted = repo.delete_non_real_assets()
+            self.assertGreaterEqual(deleted, 10)
+            self.assertEqual(repo.count(), 0)
+
     def test_clinicaltrials_parser_creates_source_backed_asset(self):
         study = {
             "protocolSection": {

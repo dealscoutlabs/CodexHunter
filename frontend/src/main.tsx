@@ -122,6 +122,23 @@ function App() {
     setTab("discovery");
   }
 
+  async function replaceDemoData() {
+    setStatus("Removing demo assets and sourcing real candidates...");
+    const params = new URLSearchParams({ per_query: String(Math.max(1, Math.min(discoveryLimit, 20))) });
+    const res = await fetch(`${API}/sourcing/replace-demo-data?${params.toString()}`, { method: "POST" });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || "Real-only sourcing failed");
+    }
+    const data = await res.json();
+    setImportedRows(data.assets);
+    setScoreMin(0);
+    setSelectedId(data.assets[0]?.asset.id || "");
+    setStatus(`Removed ${data.deleted_demo_assets} demo assets; imported ${data.imported_real_assets} real candidates`);
+    await load();
+    setTab("discovery");
+  }
+
   return (
     <main className="shell">
       <aside className="sidebar">
@@ -149,7 +166,7 @@ function App() {
         </div>
 
         {tab === "overview" && <Overview rows={rows} status={status} />}
-        {tab === "discovery" && <Discovery query={discoveryQuery} setQuery={setDiscoveryQuery} limit={discoveryLimit} setLimit={setDiscoveryLimit} ingest={ingestClinicalTrials} runPlay={runSourcingPlay} plays={plays} selectedPlay={selectedPlay} importedRows={importedRows} selectedId={selectedId} onSelect={setSelectedId} status={status} />}
+        {tab === "discovery" && <Discovery query={discoveryQuery} setQuery={setDiscoveryQuery} limit={discoveryLimit} setLimit={setDiscoveryLimit} ingest={ingestClinicalTrials} runPlay={runSourcingPlay} replaceDemoData={replaceDemoData} plays={plays} selectedPlay={selectedPlay} importedRows={importedRows} selectedId={selectedId} onSelect={setSelectedId} status={status} />}
         {tab === "assets" && <AssetList rows={filtered} selectedId={selectedId} onSelect={setSelectedId} />}
         {tab === "score" && selected && <ScoreBreakdown row={selected} />}
         {tab === "evidence" && selected && <Evidence row={selected} />}
@@ -180,7 +197,7 @@ function AssetList({ rows, selectedId, onSelect }: { rows: Row[]; selectedId: st
   return <div className="table">{rows.map(({ asset, score }) => <button className={selectedId === asset.id ? "row active-row" : "row"} key={asset.id} onClick={() => onSelect(asset.id)}><strong>{asset.generic_name}</strong><span>{asset.indication}</span><span>{asset.development_stage}</span><b>{score.total_score} · {score.rating}</b><em>{score.recommendation}</em></button>)}</div>;
 }
 
-function Discovery({ query, setQuery, limit, setLimit, ingest, runPlay, plays, selectedPlay, importedRows, selectedId, onSelect, status }: { query: string; setQuery: (value: string) => void; limit: number; setLimit: (value: number) => void; ingest: () => Promise<void>; runPlay: (playId: string) => Promise<void>; plays: SourcingPlay[]; selectedPlay: string; importedRows: Row[]; selectedId: string; onSelect: (id: string) => void; status: string }) {
+function Discovery({ query, setQuery, limit, setLimit, ingest, runPlay, replaceDemoData, plays, selectedPlay, importedRows, selectedId, onSelect, status }: { query: string; setQuery: (value: string) => void; limit: number; setLimit: (value: number) => void; ingest: () => Promise<void>; runPlay: (playId: string) => Promise<void>; replaceDemoData: () => Promise<void>; plays: SourcingPlay[]; selectedPlay: string; importedRows: Row[]; selectedId: string; onSelect: (id: string) => void; status: string }) {
   const [error, setError] = useState("");
   async function run(action: () => Promise<void>) {
     setError("");
@@ -193,6 +210,13 @@ function Discovery({ query, setQuery, limit, setLimit, ingest, runPlay, plays, s
   return (
     <div className="panel discovery">
       <h2>Sourcing Plays</h2>
+      <div className="real-only">
+        <div>
+          <strong>Real-data mode</strong>
+          <span>Remove demo records and refill the database from public ClinicalTrials.gov sourcing plays.</span>
+        </div>
+        <button className="primary" onClick={() => run(replaceDemoData)}><DownloadCloud size={16} /> Replace demo data</button>
+      </div>
       <div className="play-grid">
         {plays.map((play) => (
           <button key={play.id} className={selectedPlay === play.id ? "play active-play" : "play"} onClick={() => run(() => runPlay(play.id))}>

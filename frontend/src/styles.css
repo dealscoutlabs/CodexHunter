@@ -37,6 +37,9 @@ p { color: #536158; }
 .memo { white-space: pre-wrap; line-height: 1.5; background: #f7faf8; border: 1px solid #e3ebe5; padding: 16px; border-radius: 8px; overflow: auto; }
 .upload { display: grid; gap: 12px; max-width: 720px; }
 .discovery { display: grid; gap: 12px; }
+.real-only { border: 1px solid #d9e0da; background: #fbfdfb; border-radius: 8px; padding: 14px; display: flex; justify-content: space-between; align-items: center; gap: 14px; }
+.real-only div { display: grid; gap: 4px; }
+.real-only span { color: #536158; }
 .play-grid { display: grid; grid-template-columns: repeat(3, minmax(180px, 1fr)); gap: 10px; }
 .play { border: 1px solid #d9e0da; background: #fbfdfb; border-radius: 8px; padding: 12px; text-align: left; display: grid; gap: 8px; cursor: pointer; min-height: 132px; }
 .play strong { color: #17201b; }
@@ -52,4 +55,5 @@ p { color: #536158; }
   .sidebar { position: static; display: grid; grid-template-columns: repeat(4, 1fr); }
   .brand { grid-column: 1 / -1; }
   .filters, .grid, .score-grid, .row, .discovery-controls, .play-grid { grid-template-columns: 1fr; }
+  .real-only { align-items: stretch; flex-direction: column; }
 }
