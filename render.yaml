@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: codexhunter-api
+    runtime: python
+    plan: starter
+    rootDir: .
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: cd backend && PYTHONPATH=. uvicorn app.api:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: CODEXHUNTER_DB_PATH
+        value: /var/data/codexhunter.sqlite3
+      - key: PYTHON_VERSION
+        value: 3.11.9
+    disk:
+      name: codexhunter-data
+      mountPath: /var/data
+      sizeGB: 1
+
+  - type: web
+    name: codexhunter-web
+    runtime: static
+    plan: free
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://codexhunter-api.onrender.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

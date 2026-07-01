@@ -1,0 +1,55 @@
+:root {
+  color: #17201b;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #f5f7f3;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+button, input, select { font: inherit; }
+.shell { display: grid; grid-template-columns: 244px 1fr; min-height: 100vh; }
+.sidebar { background: #16231d; color: white; padding: 20px 14px; display: flex; flex-direction: column; gap: 8px; }
+.brand { display: flex; gap: 10px; align-items: center; font-weight: 800; margin-bottom: 20px; }
+.nav { color: #dbe8df; border: 0; background: transparent; display: flex; align-items: center; gap: 10px; padding: 11px 12px; border-radius: 8px; text-transform: capitalize; cursor: pointer; }
+.nav:hover, .nav.active { background: #294237; color: white; }
+.workspace { padding: 22px; overflow: auto; }
+.topbar { display: flex; justify-content: space-between; align-items: center; gap: 18px; margin-bottom: 18px; }
+h1 { margin: 0; font-size: 28px; line-height: 1.12; }
+h2 { margin: 10px 0; font-size: 18px; }
+p { color: #536158; }
+.primary, .filters button { background: #0f6b54; color: white; border: 0; border-radius: 8px; min-height: 40px; padding: 0 14px; display: inline-flex; gap: 8px; align-items: center; cursor: pointer; }
+.filters { display: grid; grid-template-columns: minmax(220px, 1fr) 230px 260px 44px; gap: 10px; margin-bottom: 16px; }
+.filters label { min-height: 44px; background: white; border: 1px solid #d9e0da; border-radius: 8px; display: flex; align-items: center; gap: 8px; padding: 0 12px; white-space: nowrap; }
+.filters input:not([type="range"]), .filters select { width: 100%; border: 0; outline: 0; background: transparent; min-width: 0; }
+.grid { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 14px; }
+.metric, .panel, .score { background: white; border: 1px solid #dce4de; border-radius: 8px; padding: 16px; }
+.metric span { color: #637268; display: block; margin-bottom: 8px; }
+.metric strong { font-size: 28px; }
+.table { background: white; border: 1px solid #dce4de; border-radius: 8px; overflow: hidden; }
+.row { width: 100%; display: grid; grid-template-columns: 1.2fr 1.7fr 1fr 80px 110px; gap: 12px; align-items: center; border: 0; border-bottom: 1px solid #edf1ee; background: white; text-align: left; padding: 13px 14px; cursor: pointer; }
+.row span { color: #5f6c64; min-width: 0; }
+.row em { font-style: normal; color: #0f6b54; }
+.active-row { background: #eef6f1; }
+.score-grid { display: grid; grid-template-columns: repeat(3, minmax(220px, 1fr)); gap: 12px; }
+.score div { display: flex; justify-content: space-between; gap: 8px; }
+.score p { min-height: 48px; }
+.score small, .source small { color: #69776f; }
+.source { display: grid; gap: 6px; padding: 12px 0; border-top: 1px solid #e8eee9; color: inherit; text-decoration: none; }
+.memo { white-space: pre-wrap; line-height: 1.5; background: #f7faf8; border: 1px solid #e3ebe5; padding: 16px; border-radius: 8px; overflow: auto; }
+.upload { display: grid; gap: 12px; max-width: 720px; }
+.discovery { display: grid; gap: 12px; }
+.play-grid { display: grid; grid-template-columns: repeat(3, minmax(180px, 1fr)); gap: 10px; }
+.play { border: 1px solid #d9e0da; background: #fbfdfb; border-radius: 8px; padding: 12px; text-align: left; display: grid; gap: 8px; cursor: pointer; min-height: 132px; }
+.play strong { color: #17201b; }
+.play span { color: #536158; line-height: 1.35; }
+.play small { color: #0f6b54; font-weight: 700; align-self: end; }
+.active-play { border-color: #0f6b54; background: #eef6f1; }
+.discovery-controls { display: grid; grid-template-columns: minmax(240px, 1fr) 140px 130px; gap: 10px; align-items: center; }
+.discovery-controls label { min-height: 44px; border: 1px solid #d9e0da; border-radius: 8px; display: flex; align-items: center; gap: 8px; padding: 0 12px; }
+.discovery-controls input { border: 0; outline: 0; width: 100%; min-width: 0; }
+.error { color: #a23b2a; font-weight: 700; }
+@media (max-width: 900px) {
+  .shell { grid-template-columns: 1fr; }
+  .sidebar { position: static; display: grid; grid-template-columns: repeat(4, 1fr); }
+  .brand { grid-column: 1 / -1; }
+  .filters, .grid, .score-grid, .row, .discovery-controls, .play-grid { grid-template-columns: 1fr; }
+}
