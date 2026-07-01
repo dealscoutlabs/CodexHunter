@@ -40,6 +40,35 @@ npm run dev
 
 Open `http://127.0.0.1:5173`.
 
+## Deploy On Railway
+
+Railway deploys this app as two services:
+
+- `codexhunter-api`: FastAPI backend from `backend/`.
+- `codexhunter-web`: Vite frontend from `frontend/`.
+- `/data/codexhunter.sqlite3`: SQLite database on a Railway volume attached to the API.
+
+Recommended Railway variables:
+
+- API service: `CODEXHUNTER_DB_PATH=/data/codexhunter.sqlite3`
+- Web service: `VITE_API_URL=https://<your-api-domain>`
+
+Direct CLI flow:
+
+```bash
+cd /private/tmp/codexhunter-render-clean
+railway init --name CodexHunter
+railway add --service codexhunter-api
+railway volume add --service codexhunter-api --mount-path /data
+railway variable set CODEXHUNTER_DB_PATH=/data/codexhunter.sqlite3 --service codexhunter-api
+railway up backend --path-as-root --service codexhunter-api --detach
+railway domain --service codexhunter-api
+railway add --service codexhunter-web
+railway variable set VITE_API_URL=https://<your-api-domain> --service codexhunter-web
+railway up frontend --path-as-root --service codexhunter-web --detach
+railway domain --service codexhunter-web
+```
+
 ## Deploy On Render
 
 This repo includes `render.yaml` for a Render Blueprint:
