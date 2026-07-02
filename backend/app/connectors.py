@@ -80,12 +80,94 @@ class ClinicalTrialsConnector:
         "exacerbation",
     ]
     excluded_intervention_terms = [
+        "acceptance and commitment therapy",
+        "abatacept",
+        "abiraterone",
+        "alendronate",
+        "alpha 1-antitrypsin",
+        "anastrozole",
+        "arimoclomol",
+        "ataluren",
+        "bortezomib",
+        "brentuximab",
+        "cannabidiol",
+        "capecitabine",
+        "coenzymeq10",
+        "c1 esterase inhibitor",
+        "dovitinib",
+        "duloxetine",
+        "dupilumab",
+        "emapalumab",
+        "entecavir",
+        "erenumab",
+        "hld200",
+        "ipilimumab",
+        "l-glutamine",
+        "lurbinectedin",
+        "maraviroc",
+        "methylphenidate",
+        "misoprostol",
+        "osimertinib",
+        "pembrolizumab",
         "placebo",
+        "rifampin",
+        "sirolimus",
         "standard of care",
         "best supportive care",
         "no intervention",
         "observation",
+        "sunitinib",
+        "sutent",
+        "teriparatide",
+        "ustekinumab",
+        "vincristine",
     ]
+    large_owner_terms = [
+        "abbvie",
+        "amgen",
+        "astrazeneca",
+        "bayer",
+        "biogen",
+        "bioverativ",
+        "boehringer",
+        "bristol",
+        "celgene",
+        "csl behring",
+        "eli lilly",
+        "emd serono",
+        "ferring",
+        "genentech",
+        "gilead",
+        "glaxosmithkline",
+        "gsk",
+        "hoffmann-la roche",
+        "johnson",
+        "merck",
+        "novartis",
+        "novo nordisk",
+        "pfizer",
+        "regeneron",
+        "roche",
+        "sanofi",
+        "seagen",
+        "shire",
+        "takeda",
+        "viiv",
+    ]
+    negative_stop_terms = ["safety", "toxicity", "toxic", "futility", "lack of efficacy", "limited efficacy", "efficacy reasons"]
+    business_stop_terms = [
+        "business",
+        "company decision",
+        "sponsor decision",
+        "strategic",
+        "portfolio",
+        "funding",
+        "supply",
+        "de-activation",
+        "deactivation",
+        "terminated all",
+    ]
+    max_activity_age_months = 72
 
     def ingest(self, query: str, page_size: int = 10) -> list[Asset]:
         params = {
@@ -143,11 +225,11 @@ class ClinicalTrialsConnector:
         dormant_months = self._months_since(last_update)
         if dormant_months >= 18:
             tags.append("dormant")
-            tags.append("availability_signal")
         if overall_status in {"TERMINATED", "WITHDRAWN", "SUSPENDED"}:
             tags.append("terminated")
-            tags.append("availability_signal")
-        if why_stopped and "safety" not in why_stopped.lower():
+            if self._is_positive_stop_reason(why_stopped):
+                tags.append("availability_signal")
+        if why_stopped and self._is_positive_stop_reason(why_stopped):
             tags.append("non_safety_stop_reason")
             tags.append("availability_signal")
         if sponsor_class in {"OTHER", "NIH", "FED"} or self._has_academic_owner_signal(sponsor_name, collaborators):
@@ -252,7 +334,14 @@ class ClinicalTrialsConnector:
     @classmethod
     def passes_basic_rules(cls, asset: Asset) -> bool:
         tags = set(asset.tags)
-        return cls._is_therapeutic_asset_name(asset.generic_name) and bool(tags & {"availability_signal", "licensable_signal"}) and "human_efficacy_data" in tags
+        return (
+            cls._is_therapeutic_asset_name(asset.generic_name)
+            and not cls._is_large_owner(asset.current_owner)
+            and not cls._has_negative_stop_reason(asset)
+            and cls._months_since(asset.last_known_activity_date) <= cls.max_activity_age_months
+            and ("human_efficacy_data" in tags)
+            and bool(tags & {"non_safety_stop_reason", "licensable_signal"})
+        )
 
     @staticmethod
     def _date_value(value: object) -> str:
@@ -297,7 +386,30 @@ class ClinicalTrialsConnector:
         lowered = name.strip().lower()
         if not lowered:
             return False
-        return not any(lowered == term or lowered.startswith(f"{term} ") for term in cls.excluded_intervention_terms)
+        return not any(lowered == term or lowered.startswith((f"{term} ", f"{term}-", f"{term},", f"{term} (")) for term in cls.excluded_intervention_terms)
+
+    @classmethod
+    def _has_negative_stop_reason(cls, asset: Asset) -> bool:
+        facts = asset.evidence[0].extracted_facts if asset.evidence else {}
+        text = " ".join(str(facts.get(key, "")) for key in ["why_stopped", "availability_or_licensability_signal"]).lower()
+        text = text.replace("non-safety", "").replace("unrelated to safety", "").replace("not related to safety", "").replace("not safety", "")
+        return any(term in text for term in cls.negative_stop_terms)
+
+    @classmethod
+    def _is_large_owner(cls, owner: str) -> bool:
+        lowered = owner.lower()
+        return any(term in lowered for term in cls.large_owner_terms)
+
+    @classmethod
+    def _is_positive_stop_reason(cls, reason: str) -> bool:
+        lowered = reason.lower()
+        if not lowered:
+            return False
+        safety_negated = "unrelated to safety" in lowered or "not safety" in lowered or "not related to safety" in lowered
+        negative_terms = [term for term in cls.negative_stop_terms if term != "safety"] if safety_negated else cls.negative_stop_terms
+        if any(term in lowered for term in negative_terms):
+            return False
+        return any(term in lowered for term in cls.business_stop_terms)
 
     @classmethod
     def _availability_signal(cls, status: str, why_stopped: str, dormant_months: int, sponsor_name: str, sponsor_class: str, collaborators: list[str]) -> str:

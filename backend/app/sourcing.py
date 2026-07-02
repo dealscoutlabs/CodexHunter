@@ -114,5 +114,4 @@ class SourcingEngine:
 
     @staticmethod
     def _passes_basic_rules(asset: Asset) -> bool:
-        tags = set(asset.tags)
-        return bool(tags & {"availability_signal", "licensable_signal"}) and "human_efficacy_data" in tags
+        return ClinicalTrialsConnector.passes_basic_rules(asset)

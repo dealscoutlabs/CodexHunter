@@ -10,6 +10,7 @@ from typing import Iterable, List, Optional
 
 from .models import Asset, Evidence, PatentExclusivity, Trial, now_iso
 from .seed_data import seed_assets
+from .connectors import ClinicalTrialsConnector
 
 DB_PATH = Path(os.getenv("CODEXHUNTER_DB_PATH") or os.getenv("DEALSCOUT_DB_PATH") or Path(__file__).resolve().parents[1] / "data" / "codexhunter.sqlite3")
 
@@ -57,10 +58,7 @@ class AssetRepository:
     def delete_assets_failing_basic_rules(self) -> int:
         deleted = 0
         for asset in self.list_assets():
-            tags = set(asset.tags)
-            has_availability = bool(tags & {"availability_signal", "licensable_signal"})
-            has_human_efficacy = "human_efficacy_data" in tags
-            if has_availability and has_human_efficacy:
+            if ClinicalTrialsConnector.passes_basic_rules(asset):
                 continue
             self.conn.execute("delete from assets where id = ?", (asset.id,))
             deleted += 1

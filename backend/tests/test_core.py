@@ -116,7 +116,7 @@ class DealScoutCoreTests(unittest.TestCase):
             },
         }
         asset = ClinicalTrialsConnector()._study_to_asset(study)
-        self.assertIn("availability_signal", asset.tags)
+        self.assertNotIn("availability_signal", asset.tags)
         self.assertNotIn("human_efficacy_data", asset.tags)
         self.assertFalse(ClinicalTrialsConnector.passes_basic_rules(asset))
 
@@ -126,12 +126,30 @@ class DealScoutCoreTests(unittest.TestCase):
         asset.tags = ["real_data", "clinicaltrials", "availability_signal", "human_efficacy_data"]
         self.assertFalse(ClinicalTrialsConnector.passes_basic_rules(asset))
 
+    def test_clinicaltrials_basic_rules_reject_large_owner_assets(self):
+        asset = seed_assets()[0]
+        asset.generic_name = "Abatacept"
+        asset.current_owner = "Bristol-Myers Squibb"
+        asset.last_known_activity_date = "2024-01-01"
+        asset.tags = ["real_data", "clinicaltrials", "non_safety_stop_reason", "human_efficacy_data"]
+        self.assertFalse(ClinicalTrialsConnector.passes_basic_rules(asset))
+
+    def test_clinicaltrials_basic_rules_reject_stale_only_assets(self):
+        asset = seed_assets()[0]
+        asset.generic_name = "OldDrug"
+        asset.current_owner = "SmallCo"
+        asset.last_known_activity_date = "2007-01-01"
+        asset.tags = ["real_data", "clinicaltrials", "dormant", "human_efficacy_data"]
+        self.assertFalse(ClinicalTrialsConnector.passes_basic_rules(asset))
+
     def test_sourcing_engine_dedupes_and_scores_candidates(self):
         class FakeConnector:
             def ingest(self, query, page_size=5):
                 asset = seed_assets()[0]
                 asset.id = "same-real-asset"
-                asset.tags = ["real_data", "clinicaltrials", "availability_signal", "human_efficacy_data"]
+                asset.current_owner = "SmallCo"
+                asset.last_known_activity_date = "2024-01-01"
+                asset.tags = ["real_data", "clinicaltrials", "non_safety_stop_reason", "human_efficacy_data"]
                 return [asset]
 
         result = SourcingEngine(connector=FakeConnector()).run_queries(["one", "two"], per_query=1)
