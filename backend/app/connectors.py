@@ -122,6 +122,36 @@ class ClinicalTrialsConnector:
         "ustekinumab",
         "vincristine",
     ]
+    regression_reject_terms = [
+        "350 mg leronlimab",
+        "acp-044",
+        "ad/pnp",
+        "bempegaldesleukin",
+        "camonsertib",
+        "cd24 extracellular domain",
+        "cd24fc",
+        "cirmtuzumab",
+        "cx-2009",
+        "gedeptin",
+        "ilb",
+        "leronlimab",
+        "mk-7110",
+        "nirogacestat",
+        "nktr-214",
+        "ogsiveo",
+        "pf-03084014",
+        "praluzatamab",
+        "ptc857",
+        "rp-3500",
+        "sym013",
+    ]
+    regression_reject_nct_ids = {
+        "NCT01981551",  # PF-03084014 / nirogacestat: approved commercial product via academic NCI lane.
+        "NCT05405309",  # RP-3500 / camonsertib: originator-retained program.
+        "NCT05008835",  # ACP-044: retained non-orphan pain program.
+        "NCT02906670",  # Sym013: sponsor acquired by large pharma.
+        "NCT05349721",  # PTC857: originator-retained.
+    }
     large_owner_terms = [
         "abbvie",
         "amgen",
@@ -336,6 +366,7 @@ class ClinicalTrialsConnector:
         tags = set(asset.tags)
         return (
             cls._is_therapeutic_asset_name(asset.generic_name)
+            and not cls._is_regression_reject(asset)
             and not cls._is_large_owner(asset.current_owner)
             and not cls._has_negative_stop_reason(asset)
             and cls._months_since(asset.last_known_activity_date) <= cls.max_activity_age_months
@@ -387,6 +418,16 @@ class ClinicalTrialsConnector:
         if not lowered:
             return False
         return not any(lowered == term or lowered.startswith((f"{term} ", f"{term}-", f"{term},", f"{term} (")) for term in cls.excluded_intervention_terms)
+
+    @classmethod
+    def _is_regression_reject(cls, asset: Asset) -> bool:
+        facts = asset.evidence[0].extracted_facts if asset.evidence else {}
+        nct_id = str(facts.get("nct_id", "")).upper()
+        if nct_id in cls.regression_reject_nct_ids:
+            return True
+        interventions = " ".join(str(item) for item in facts.get("interventions", [])).lower()
+        text = " ".join([asset.id, asset.generic_name, asset.current_owner, interventions]).lower()
+        return any(term in text for term in cls.regression_reject_terms)
 
     @classmethod
     def _has_negative_stop_reason(cls, asset: Asset) -> bool:

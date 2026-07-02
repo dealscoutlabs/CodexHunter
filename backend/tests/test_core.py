@@ -142,6 +142,25 @@ class DealScoutCoreTests(unittest.TestCase):
         asset.tags = ["real_data", "clinicaltrials", "dormant", "human_efficacy_data"]
         self.assertFalse(ClinicalTrialsConnector.passes_basic_rules(asset))
 
+    def test_clinicaltrials_basic_rules_reject_approved_pf03084014_regression(self):
+        asset = seed_assets()[0]
+        asset.id = "ctgov-nct01981551"
+        asset.generic_name = "PF-03084014"
+        asset.current_owner = "National Cancer Institute (NCI)"
+        asset.last_known_activity_date = "2024-02-06"
+        asset.tags = ["real_data", "clinicaltrials", "licensable_signal", "human_efficacy_data"]
+        asset.evidence[0].extracted_facts = {"nct_id": "NCT01981551", "interventions": ["PF-03084014"]}
+        self.assertFalse(ClinicalTrialsConnector.passes_basic_rules(asset))
+
+    def test_clinicaltrials_basic_rules_reject_sponsor_not_owner_false_positive(self):
+        asset = seed_assets()[0]
+        asset.generic_name = "CD24 Extracellular Domain-IgG1 Fc Domain Recombinant Fusion Protein CD24Fc"
+        asset.current_owner = "Tianhong Li"
+        asset.last_known_activity_date = "2023-08-02"
+        asset.tags = ["real_data", "clinicaltrials", "non_safety_stop_reason", "licensable_signal", "human_efficacy_data"]
+        asset.evidence[0].extracted_facts = {"nct_id": "NCT00000002", "interventions": ["CD24Fc"]}
+        self.assertFalse(ClinicalTrialsConnector.passes_basic_rules(asset))
+
     def test_sourcing_engine_dedupes_and_scores_candidates(self):
         class FakeConnector:
             def ingest(self, query, page_size=5):
