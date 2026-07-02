@@ -23,8 +23,8 @@ type Asset = {
   current_owner: string;
   asset_status: string;
   last_known_activity_date: string;
-  evidence: { title: string; url: string; evidence_type: string; confidence: number; summary: string }[];
-  trials: { nct_id: string; phase: string; status: string; enrollment: number; url: string }[];
+  evidence: { title: string; url: string; evidence_type: string; confidence: number; summary: string; extracted_facts?: Record<string, unknown> }[];
+  trials: { nct_id: string; phase: string; status: string; enrollment: number; url: string; outcome_summary?: string }[];
   tags: string[];
 };
 type Row = { asset: Asset; score: Score };
@@ -194,7 +194,49 @@ function Metric({ label, value, wide }: { label: string; value: string | number;
 }
 
 function AssetList({ rows, selectedId, onSelect }: { rows: Row[]; selectedId: string; onSelect: (id: string) => void }) {
-  return <div className="table">{rows.map(({ asset, score }) => <button className={selectedId === asset.id ? "row active-row" : "row"} key={asset.id} onClick={() => onSelect(asset.id)}><strong>{asset.generic_name}</strong><span>{asset.indication}</span><span>{asset.development_stage}</span><b>{score.total_score} · {score.rating}</b><em>{score.recommendation}</em></button>)}</div>;
+  return (
+    <div className="table asset-table">
+      <div className="asset-header">
+        <span>Drug</span>
+        <span>Owner</span>
+        <span>Available / licensable signal</span>
+        <span>Treats</span>
+        <span>Efficacy data</span>
+        <span>Score</span>
+      </div>
+      {rows.map((row) => <AssetRow row={row} selected={selectedId === row.asset.id} onSelect={onSelect} key={row.asset.id} />)}
+    </div>
+  );
+}
+
+function AssetRow({ row, selected, onSelect }: { row: Row; selected: boolean; onSelect: (id: string) => void }) {
+  const { asset, score } = row;
+  return (
+    <button className={selected ? "asset-row active-row" : "asset-row"} onClick={() => onSelect(asset.id)}>
+      <strong>{asset.generic_name}</strong>
+      <span>{asset.current_owner}</span>
+      <span>{availabilitySignal(asset)}</span>
+      <span>{asset.indication}</span>
+      <span>{efficacySummary(asset)}</span>
+      <b>{score.total_score} · {score.recommendation}</b>
+    </button>
+  );
+}
+
+function availabilitySignal(asset: Asset) {
+  const facts = asset.evidence[0]?.extracted_facts || {};
+  const signal = facts.availability_or_licensability_signal;
+  if (typeof signal === "string" && signal.trim()) return signal;
+  if (asset.tags.includes("licensable_signal")) return "Academic/government/nonprofit sponsor may support licensing inquiry.";
+  if (asset.tags.includes("availability_signal")) return asset.asset_status === "dormant" ? "Dormant or stale public activity." : "Public trial status suggests availability.";
+  return "Needs verification.";
+}
+
+function efficacySummary(asset: Asset) {
+  const facts = asset.evidence[0]?.extracted_facts || {};
+  const measures = facts.human_efficacy_measures;
+  if (Array.isArray(measures) && measures.length) return measures.slice(0, 3).filter(Boolean).join("; ");
+  return asset.trials[0]?.outcome_summary || "Needs verification.";
 }
 
 function Discovery({ query, setQuery, limit, setLimit, ingest, runPlay, replaceDemoData, plays, selectedPlay, importedRows, selectedId, onSelect, status }: { query: string; setQuery: (value: string) => void; limit: number; setLimit: (value: number) => void; ingest: () => Promise<void>; runPlay: (playId: string) => Promise<void>; replaceDemoData: () => Promise<void>; plays: SourcingPlay[]; selectedPlay: string; importedRows: Row[]; selectedId: string; onSelect: (id: string) => void; status: string }) {

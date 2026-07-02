@@ -29,6 +29,14 @@ p { color: #536158; }
 .row span { color: #5f6c64; min-width: 0; }
 .row em { font-style: normal; color: #0f6b54; }
 .active-row { background: #eef6f1; }
+.asset-table { overflow-x: auto; }
+.asset-header, .asset-row { min-width: 1180px; display: grid; grid-template-columns: 1.05fr .9fr 1.45fr 1.2fr 1.65fr 100px; gap: 12px; align-items: start; }
+.asset-header { background: #f7faf8; border-bottom: 1px solid #dce4de; padding: 10px 14px; color: #637268; font-size: 12px; font-weight: 800; text-transform: uppercase; }
+.asset-row { width: 100%; border: 0; border-bottom: 1px solid #edf1ee; background: white; text-align: left; padding: 13px 14px; cursor: pointer; }
+.asset-row:hover { background: #f7faf8; }
+.asset-row strong { color: #17201b; line-height: 1.25; }
+.asset-row span { color: #536158; line-height: 1.35; min-width: 0; overflow-wrap: anywhere; }
+.asset-row b { color: #0f6b54; font-size: 13px; white-space: nowrap; }
 .score-grid { display: grid; grid-template-columns: repeat(3, minmax(220px, 1fr)); gap: 12px; }
 .score div { display: flex; justify-content: space-between; gap: 8px; }
 .score p { min-height: 48px; }
