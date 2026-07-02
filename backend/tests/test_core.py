@@ -71,22 +71,67 @@ class DealScoutCoreTests(unittest.TestCase):
                 "armsInterventionsModule": {"interventions": [{"type": "DRUG", "name": "RealDrug", "otherNames": ["RD-1"]}]},
                 "outcomesModule": {"primaryOutcomes": [{"measure": "Change in functional score"}]},
                 "descriptionModule": {"briefSummary": "A rare disease study."},
-            }
+            },
+            "hasResults": True,
+            "resultsSection": {
+                "outcomeMeasuresModule": {
+                    "outcomeMeasures": [
+                        {"type": "PRIMARY", "title": "Change in functional score", "description": "Human efficacy outcome posted."}
+                    ]
+                }
+            },
         }
         asset = ClinicalTrialsConnector()._study_to_asset(study)
         self.assertEqual(asset.id, "ctgov-nct12345678")
         self.assertEqual(asset.generic_name, "RealDrug")
         self.assertIn("real_data", asset.tags)
         self.assertIn("clinicaltrials", asset.tags)
+        self.assertIn("availability_signal", asset.tags)
+        self.assertIn("human_efficacy_data", asset.tags)
         self.assertEqual(asset.evidence[0].url, "https://clinicaltrials.gov/study/NCT12345678")
         self.assertEqual(asset.trials[0].nct_id, "NCT12345678")
+
+    def test_clinicaltrials_basic_rules_reject_records_without_efficacy_results(self):
+        study = {
+            "protocolSection": {
+                "identificationModule": {"nctId": "NCT00000001", "briefTitle": "Safety Only Study"},
+                "statusModule": {
+                    "overallStatus": "TERMINATED",
+                    "lastUpdatePostDateStruct": {"date": "2022-01-15"},
+                },
+                "sponsorCollaboratorsModule": {"leadSponsor": {"name": "Example Sponsor", "class": "INDUSTRY"}},
+                "conditionsModule": {"conditions": ["Rare Disease"]},
+                "designModule": {"phases": ["PHASE2"], "enrollmentInfo": {"count": 20}},
+                "armsInterventionsModule": {"interventions": [{"type": "DRUG", "name": "SafetyDrug"}]},
+                "outcomesModule": {"primaryOutcomes": [{"measure": "Dose limiting toxicity"}]},
+                "descriptionModule": {"briefSummary": "A rare disease study."},
+            },
+            "hasResults": True,
+            "resultsSection": {
+                "outcomeMeasuresModule": {
+                    "outcomeMeasures": [
+                        {"type": "PRIMARY", "title": "Dose Limiting Toxicity", "description": "Safety endpoint."}
+                    ]
+                }
+            },
+        }
+        asset = ClinicalTrialsConnector()._study_to_asset(study)
+        self.assertIn("availability_signal", asset.tags)
+        self.assertNotIn("human_efficacy_data", asset.tags)
+        self.assertFalse(ClinicalTrialsConnector.passes_basic_rules(asset))
+
+    def test_clinicaltrials_basic_rules_reject_placebo_assets(self):
+        asset = seed_assets()[0]
+        asset.generic_name = "Placebo"
+        asset.tags = ["real_data", "clinicaltrials", "availability_signal", "human_efficacy_data"]
+        self.assertFalse(ClinicalTrialsConnector.passes_basic_rules(asset))
 
     def test_sourcing_engine_dedupes_and_scores_candidates(self):
         class FakeConnector:
             def ingest(self, query, page_size=5):
                 asset = seed_assets()[0]
                 asset.id = "same-real-asset"
-                asset.tags = ["real_data", "clinicaltrials"]
+                asset.tags = ["real_data", "clinicaltrials", "availability_signal", "human_efficacy_data"]
                 return [asset]
 
         result = SourcingEngine(connector=FakeConnector()).run_queries(["one", "two"], per_query=1)

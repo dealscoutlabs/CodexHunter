@@ -212,10 +212,10 @@ function Discovery({ query, setQuery, limit, setLimit, ingest, runPlay, replaceD
       <h2>Sourcing Plays</h2>
       <div className="real-only">
         <div>
-          <strong>Real-data mode</strong>
-          <span>Remove demo records and refill the database from public ClinicalTrials.gov sourcing plays.</span>
+          <strong>Qualified sourcing mode</strong>
+          <span>Keep only assets with plausible availability/licensability and posted human efficacy data.</span>
         </div>
-        <button className="primary" onClick={() => run(replaceDemoData)}><DownloadCloud size={16} /> Replace demo data</button>
+        <button className="primary" onClick={() => run(replaceDemoData)}><DownloadCloud size={16} /> Re-source qualified assets</button>
       </div>
       <div className="play-grid">
         {plays.map((play) => (

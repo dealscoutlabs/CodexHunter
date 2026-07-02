@@ -117,8 +117,9 @@ def create_app():
         return {**result, "asset_count": repo.count()}
 
     @app.post("/sourcing/replace-demo-data")
-    def replace_demo_data(play_ids: str = "non_safety_terminated,dormant_phase2,rare_orphan", per_query: int = 4):
+    def replace_demo_data(play_ids: str = "non_safety_terminated,dormant_phase2,rare_orphan", per_query: int = 10):
         deleted = repo.delete_non_real_assets()
+        deleted_unqualified = repo.delete_assets_failing_basic_rules()
         by_id = {}
         failures = []
         plays = []
@@ -138,6 +139,7 @@ def create_app():
         rows.sort(key=lambda row: row["score"]["total_score"], reverse=True)
         return {
             "deleted_demo_assets": deleted,
+            "deleted_unqualified_assets": deleted_unqualified,
             "imported_real_assets": len(assets),
             "plays": plays,
             "failures": failures,

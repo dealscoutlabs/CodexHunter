@@ -54,6 +54,19 @@ class AssetRepository:
         self.conn.commit()
         return deleted
 
+    def delete_assets_failing_basic_rules(self) -> int:
+        deleted = 0
+        for asset in self.list_assets():
+            tags = set(asset.tags)
+            has_availability = bool(tags & {"availability_signal", "licensable_signal"})
+            has_human_efficacy = "human_efficacy_data" in tags
+            if has_availability and has_human_efficacy:
+                continue
+            self.conn.execute("delete from assets where id = ?", (asset.id,))
+            deleted += 1
+        self.conn.commit()
+        return deleted
+
     def upsert_many(self, assets: Iterable[Asset]) -> None:
         for asset in assets:
             self.upsert(asset)

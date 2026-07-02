@@ -52,6 +52,40 @@ class MockClinicalTrialsConnector:
 class ClinicalTrialsConnector:
     name = "clinicaltrials.gov"
     base_url = "https://clinicaltrials.gov/api/v2/studies"
+    academic_terms = [
+        "university",
+        "hospital",
+        "institute",
+        "foundation",
+        "medical center",
+        "nih",
+        "national cancer institute",
+        "children's",
+    ]
+    efficacy_terms = [
+        "response",
+        "survival",
+        "progression",
+        "remission",
+        "change in",
+        "improvement",
+        "efficacy",
+        "score",
+        "symptom",
+        "function",
+        "biomarker",
+        "viral load",
+        "tumor",
+        "lesion",
+        "exacerbation",
+    ]
+    excluded_intervention_terms = [
+        "placebo",
+        "standard of care",
+        "best supportive care",
+        "no intervention",
+        "observation",
+    ]
 
     def ingest(self, query: str, page_size: int = 10) -> list[Asset]:
         params = {
@@ -62,7 +96,12 @@ class ClinicalTrialsConnector:
         url = f"{self.base_url}?{urlencode(params)}"
         with urlopen(url, timeout=20) as response:
             payload = json.loads(response.read().decode("utf-8"))
-        return [self._study_to_asset(study) for study in payload.get("studies", [])]
+        assets = []
+        for study in payload.get("studies", []):
+            asset = self._study_to_asset(study)
+            if self.passes_basic_rules(asset):
+                assets.append(asset)
+        return assets
 
     def _study_to_asset(self, study: dict) -> Asset:
         protocol = study.get("protocolSection", {})
@@ -96,16 +135,31 @@ class ClinicalTrialsConnector:
         evidence_url = f"https://clinicaltrials.gov/study/{nct_id}"
         source_date = now_iso()[:10]
         tags = ["real_data", "clinicaltrials"]
+        sponsor_name = sponsor.get("name", "Needs verification")
+        sponsor_class = sponsor.get("class", "")
+        has_results = bool(study.get("hasResults") or results)
+        efficacy_measures = self._efficacy_outcome_titles(outcomes, results)
 
         dormant_months = self._months_since(last_update)
         if dormant_months >= 18:
             tags.append("dormant")
+            tags.append("availability_signal")
         if overall_status in {"TERMINATED", "WITHDRAWN", "SUSPENDED"}:
             tags.append("terminated")
+            tags.append("availability_signal")
         if why_stopped and "safety" not in why_stopped.lower():
             tags.append("non_safety_stop_reason")
+            tags.append("availability_signal")
+        if sponsor_class in {"OTHER", "NIH", "FED"} or self._has_academic_owner_signal(sponsor_name, collaborators):
+            tags.append("licensable_signal")
         if any("PHASE2" in phase.replace(" ", "").upper() for phase in phases):
             tags.append("human_data")
+        if any("PHASE3" in phase.replace(" ", "").upper() for phase in phases):
+            tags.append("human_data")
+        if has_results:
+            tags.append("public_results")
+        if self._has_human_efficacy_data(phases, has_results, efficacy_measures):
+            tags.append("human_efficacy_data")
         if self._is_rare_record(conditions, description.get("briefSummary", "")):
             tags.extend(["rare", "orphan_potential"])
 
@@ -130,9 +184,9 @@ class ClinicalTrialsConnector:
             development_stage=stage,
             regulatory_status=f"ClinicalTrials.gov status: {overall_status}",
             foreign_approval_status="Needs verification",
-            current_owner=sponsor.get("name", "Needs verification"),
-            original_inventor_or_institution=ident.get("organization", {}).get("fullName", sponsor.get("name", "Needs verification")),
-            license_status="Needs verification",
+            current_owner=sponsor_name,
+            original_inventor_or_institution=ident.get("organization", {}).get("fullName", sponsor_name),
+            license_status="Plausibly available/licensable - verify rights" if {"availability_signal", "licensable_signal"} & set(tags) else "Needs verification",
             asset_status=asset_status,
             last_known_activity_date=last_update or completion or primary_completion or start or now[:10],
             source_confidence=0.78,
@@ -140,7 +194,8 @@ class ClinicalTrialsConnector:
             updated_at=now,
             tags=sorted(set(tags)),
             assumptions=[
-                "ClinicalTrials.gov record is real public data, but asset licensability, ownership rights, IP, regulatory pathway, and commercial conclusions need verification.",
+                "Asset availability/licensability is inferred from public trial status, dormancy, stop reason, or sponsor class and must be confirmed with the owner.",
+                "Human efficacy signal is inferred from posted ClinicalTrials.gov outcome data; detailed effect size and endpoint quality need diligence.",
                 "Drug identity is inferred from trial intervention names and may include combination, comparator, or dosing text.",
             ],
         )
@@ -160,6 +215,9 @@ class ClinicalTrialsConnector:
                     "why_stopped": why_stopped or "Needs verification",
                     "conditions": conditions,
                     "interventions": [item.get("name") for item in interventions if item.get("name")],
+                    "availability_or_licensability_signal": self._availability_signal(overall_status, why_stopped, dormant_months, sponsor_name, sponsor_class, collaborators),
+                    "human_efficacy_measures": efficacy_measures,
+                    "has_public_results": has_results,
                     "source_title": ident.get("briefTitle", f"ClinicalTrials.gov record {nct_id}"),
                     "source_url": evidence_url,
                     "date_accessed": source_date,
@@ -190,6 +248,11 @@ class ClinicalTrialsConnector:
             )
         ]
         return asset
+
+    @classmethod
+    def passes_basic_rules(cls, asset: Asset) -> bool:
+        tags = set(asset.tags)
+        return cls._is_therapeutic_asset_name(asset.generic_name) and bool(tags & {"availability_signal", "licensable_signal"}) and "human_efficacy_data" in tags
 
     @staticmethod
     def _date_value(value: object) -> str:
@@ -224,6 +287,65 @@ class ClinicalTrialsConnector:
             return "drug"
         return "unknown"
 
+    @classmethod
+    def _has_academic_owner_signal(cls, sponsor_name: str, collaborators: list[str]) -> bool:
+        text = " ".join([sponsor_name] + collaborators).lower()
+        return any(term in text for term in cls.academic_terms)
+
+    @classmethod
+    def _is_therapeutic_asset_name(cls, name: str) -> bool:
+        lowered = name.strip().lower()
+        if not lowered:
+            return False
+        return not any(lowered == term or lowered.startswith(f"{term} ") for term in cls.excluded_intervention_terms)
+
+    @classmethod
+    def _availability_signal(cls, status: str, why_stopped: str, dormant_months: int, sponsor_name: str, sponsor_class: str, collaborators: list[str]) -> str:
+        reasons = []
+        if status in {"TERMINATED", "WITHDRAWN", "SUSPENDED"}:
+            reasons.append(f"trial status is {status}")
+        if why_stopped and "safety" not in why_stopped.lower():
+            reasons.append(f"non-safety stop reason: {why_stopped}")
+        if dormant_months >= 18:
+            reasons.append(f"last public update is {dormant_months} months old")
+        if sponsor_class in {"OTHER", "NIH", "FED"} or cls._has_academic_owner_signal(sponsor_name, collaborators):
+            reasons.append("academic/government/nonprofit sponsor may support licensing inquiry")
+        return "; ".join(reasons) or "No availability/licensability signal parsed."
+
+    @classmethod
+    def _has_human_efficacy_data(cls, phases: list[str], has_results: bool, efficacy_measures: list[str]) -> bool:
+        human_stage = any(phase.replace(" ", "").upper() in {"PHASE2", "PHASE3", "PHASE2_PHASE3"} for phase in phases)
+        return human_stage and has_results and bool(efficacy_measures)
+
+    @classmethod
+    def _efficacy_outcome_titles(cls, outcomes: dict, results: dict) -> list[str]:
+        titles: list[str] = []
+        result_measures = ((results.get("outcomeMeasuresModule") or {}).get("outcomeMeasures") or [])
+        for measure in result_measures:
+            title = measure.get("title") or ""
+            description = measure.get("description") or ""
+            if cls._looks_like_efficacy_measure(" ".join([title, description])):
+                titles.append(title)
+        if titles:
+            return titles[:8]
+        protocol_measures = (outcomes.get("primaryOutcomes") or []) + (outcomes.get("secondaryOutcomes") or [])
+        for measure in protocol_measures:
+            title = measure.get("measure") or ""
+            description = measure.get("description") or ""
+            if cls._looks_like_efficacy_measure(" ".join([title, description])):
+                titles.append(title)
+        return titles[:8]
+
+    @classmethod
+    def _looks_like_efficacy_measure(cls, text: str) -> bool:
+        lowered = text.lower()
+        if not lowered:
+            return False
+        safety_only = ["adverse event", "toxicity", "maximum tolerated", "dose limiting toxicity", "serious adverse"]
+        if any(term in lowered for term in safety_only) and not any(term in lowered for term in ["survival", "response", "progression", "tumor", "score"]):
+            return False
+        return any(term in lowered for term in cls.efficacy_terms)
+
     @staticmethod
     def _therapeutic_area(conditions: list[str], derived: dict) -> str:
         meshes = ((derived.get("conditionBrowseModule") or {}).get("meshes") or [])
@@ -242,6 +364,11 @@ class ClinicalTrialsConnector:
 
     @staticmethod
     def _outcome_summary(outcomes: dict, results: dict) -> str:
+        result_measures = ((results.get("outcomeMeasuresModule") or {}).get("outcomeMeasures") or [])
+        if result_measures:
+            titles = [item.get("title", "") for item in result_measures if item.get("title")]
+            if titles:
+                return "Posted human outcome results: " + "; ".join(titles[:4])
         primary = [item.get("measure", "") for item in outcomes.get("primaryOutcomes", []) if item.get("measure")]
         if primary:
             return "Primary outcomes listed: " + "; ".join(primary[:4])

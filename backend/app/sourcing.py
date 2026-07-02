@@ -94,6 +94,8 @@ class SourcingEngine:
                 for asset in self.connector.ingest(query, page_size=per_query):
                     if asset.id in seen:
                         continue
+                    if not self._passes_basic_rules(asset):
+                        continue
                     asset.tags = sorted(set(asset.tags + ["sourcing_candidate"]))
                     seen.add(asset.id)
                     assets.append(asset)
@@ -109,3 +111,8 @@ class SourcingEngine:
             if play["id"] == play_id:
                 return play
         raise ValueError(f"Unknown sourcing play: {play_id}")
+
+    @staticmethod
+    def _passes_basic_rules(asset: Asset) -> bool:
+        tags = set(asset.tags)
+        return bool(tags & {"availability_signal", "licensable_signal"}) and "human_efficacy_data" in tags
